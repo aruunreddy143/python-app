@@ -31,3 +31,17 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ secrets.AWS_REGION }}
 
+      - name: Get image digest
+        id: get-digest
+        run: |
+          DIGEST=$(aws ecr describe-images \
+            --repository-name ${{ secrets.ECR_REPOSITORY }} \
+            --image-ids imageTag=latest \
+            --region ${{ secrets.AWS_REGION }} \
+            --query 'imageDetails[0].imageDigest' \
+            --output text)
+          echo "digest=$DIGEST" >> $GITHUB_OUTPUT
+
+      - name: Log image information
+        run: |
+          echo "Image digest: ${{ steps.get-digest.outputs.digest }}"
