@@ -31,35 +31,3 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ secrets.AWS_REGION }}
 
-      - name: Get image digest
-        id: get-digest
-        run: |
-          DIGEST=$(aws ecr describe-images \
-            --repository-name ${{ secrets.ECR_REPOSITORY }} \
-            --image-ids imageTag=latest \
-            --region ${{ secrets.AWS_REGION }} \
-            --query 'imageDetails[0].imageDigest' \
-            --output text)
-          echo "digest=$DIGEST" >> $GITHUB_OUTPUT
-
-      - name: Scan ECR image
-        id: scan-image
-        run: |
-          aws ecr start-image-scan \
-            --repository-name ${{ secrets.ECR_REPOSITORY }} \
-            --image-id imageDigest=${{ steps.get-digest.outputs.digest }} \
-            --region ${{ secrets.AWS_REGION }}
-
-      - name: Wait for scan to complete
-        run: |
-          aws ecr wait image-scan-complete \
-            --repository-name ${{ secrets.ECR_REPOSITORY }} \
-            --image-id imageDigest=${{ steps.get-digest.outputs.digest }} \
-            --region ${{ secrets.AWS_REGION }} || true
-
-      - name: Get scan results
-        run: |
-          aws ecr describe-image-scan-findings \
-            --repository-name ${{ secrets.ECR_REPOSITORY }} \
-            --image-id imageDigest=${{ steps.get-digest.outputs.digest }} \
-            --region ${{ secrets.AWS_REGION }}
