@@ -35,20 +35,20 @@ jobs:
         id: scan-image
         run: |
           aws ecr start-image-scan \
-            --repository-name ${{ env.ECR_REPOSITORY }} \
+            --repository-name ${{ secrets.ECR_REPOSITORY }} \
             --image-id imageTag=latest \
-            --region ${{ env.AWS_REGION }}
+            --region ${{ secrets.AWS_REGION }}
 
       - name: Wait for scan to complete
         run: |
           aws ecr wait image-scan-complete \
-            --repository-name ${{ env.ECR_REPOSITORY }} \
+            --repository-name ${{ secrets.ECR_REPOSITORY }} \
             --image-id imageTag=latest \
-            --region ${{ env.AWS_REGION }} || true
+            --region ${{ secrets.AWS_REGION }} || true
 
       - name: Get scan results
         run: |
           aws ecr describe-image-scan-findings \
-            --repository-name ${{ env.ECR_REPOSITORY }} \
+            --repository-name ${{ secrets.ECR_REPOSITORY }} \
             --image-id imageTag=latest \
-            --region ${{ env.AWS_REGION }}
+            --region ${{ secrets.AWS_REGION }}
