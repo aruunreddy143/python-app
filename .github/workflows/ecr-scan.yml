@@ -9,7 +9,7 @@ on:
     - cron: '0 2 * * *'
   workflow_dispatch:
 
-secrets:
+env:
   AWS_REGION: us-east-1
   ECR_REPOSITORY: python-app
 
