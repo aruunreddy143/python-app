@@ -9,12 +9,12 @@ on:
     - cron: '0 2 * * *'
   workflow_dispatch:
 
-env:
+secrets:
   AWS_REGION: us-east-1
   ECR_REPOSITORY: python-app
 
 jobs:
-  scan:
+  build-and-scan:
     runs-on: ubuntu-latest
     permissions:
       id-token: write
@@ -31,17 +31,52 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ secrets.AWS_REGION }}
 
-      - name: Get image digest
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build, tag, and push image to Amazon ECR
+        env:          
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+          docker tag $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG $ECR_REGISTRY/$ECR_REPOSITORY:latest
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
+
+      - name: Get image digest for single platform
         id: get-digest
         run: |
-          DIGEST=$(aws ecr describe-images \
+          DIGEST=$(aws ecr batch-get-image \
             --repository-name ${{ secrets.ECR_REPOSITORY }} \
             --image-ids imageTag=latest \
             --region ${{ secrets.AWS_REGION }} \
-            --query 'imageDetails[0].imageDigest' \
+            --query 'images[0].imageId.imageDigest' \
             --output text)
           echo "digest=$DIGEST" >> $GITHUB_OUTPUT
 
+      - name: Start image scan
+        run: |
+          aws ecr start-image-scan \
+            --repository-name ${{ secrets.ECR_REPOSITORY }} \
+            --image-id imageDigest=${{ steps.get-digest.outputs.digest }} \
+            --region ${{ secrets.AWS_REGION }}
+
+      - name: Wait for scan to complete
+        run: |
+          aws ecr wait image-scan-complete \
+            --repository-name ${{ secrets.ECR_REPOSITORY }} \
+            --image-id imageDigest=${{ steps.get-digest.outputs.digest }} \
+            --region ${{ secrets.AWS_REGION }} || true
+
+      - name: Get scan results
+        run: |
+          aws ecr describe-image-scan-findings \
+            --repository-name ${{ secrets.ECR_REPOSITORY }} \
+            --image-id imageDigest=${{ steps.get-digest.outputs.digest }} \
+            --region ${{ secrets.AWS_REGION }}
+
       - name: Log image information
         run: |
+          echo "Image pushed: ${{ steps.login-ecr.outputs.registry }}/${{ secrets.ECR_REPOSITORY }}:latest"
           echo "Image digest: ${{ steps.get-digest.outputs.digest }}"
